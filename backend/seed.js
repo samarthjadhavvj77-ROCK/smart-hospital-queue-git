@@ -14,7 +14,9 @@ async function seed() {
         email: 'admin@apollo.com',
         phone: '9876543210',
         password: 'password123',
-        role: 'admin'
+        role: 'admin',
+        hospitalName: 'Apollo City Hospital',
+        hospitalAddress: '123 Health Ave, Metropolis'
       })
     });
     
@@ -35,23 +37,15 @@ async function seed() {
     
     const adminToken = adminData.token;
 
-    // Create Hospital
-    console.log('Creating Hospital...');
-    await fetch(`${API_URL}/hospitals`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },
-      body: JSON.stringify({
-        name: 'Apollo City Hospital',
-        email: 'admin@apollo.com',
-        phone: '9876543210',
-        address: '123 Health Ave, Metropolis'
-      })
-    });
-
     // Get Hospital ID
     const hospRes = await fetch(`${API_URL}/hospitals`);
     const hospitals = await hospRes.json();
-    const myHospital = hospitals.find(h => h.admin === adminData._id || (h.admin && h.admin._id === adminData._id));
+    
+    // We can also fetch headers if needed, let's find the hospital
+    const myHospital = hospitals.find(h => {
+      const adminId = typeof h.admin === 'object' ? h.admin._id : h.admin;
+      return adminId === adminData._id;
+    });
 
     if (!myHospital) throw new Error("Hospital wasn't created!");
 

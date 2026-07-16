@@ -261,7 +261,41 @@ async function generateAIResponse(patientId, userMessage, res) {
 
 async function analyzeTriage(transcript, language) {
   if (!process.env.GEMINI_API_KEY) {
-    throw new Error('GEMINI_API_KEY is missing');
+    console.warn('GEMINI_API_KEY is missing. Using local rule-based triage simulator...');
+    
+    const text = transcript.toLowerCase();
+    const severeKeywords = [
+      'chest pain', 'breathing difficulty', 'unconscious', 'bleeding', 'fracture', 'heart',
+      'stroke', 'accident', 'injury', 'severe', 'pain in chest', 'breath', 'die', 'emergency',
+      'सीना', 'दर्द', 'सांस', 'खून', 'दुर्घटना', 'गंभीर'
+    ];
+    
+    const isSevere = severeKeywords.some(keyword => text.includes(keyword));
+    
+    let advice = '';
+    if (language.startsWith('hi')) {
+      advice = isSevere
+        ? 'सिम्युलेटर अलर्ट: आपके लक्षण गंभीर प्रतीत होते हैं। कृपया तुरंत नजदीकी अस्पताल के आपातकालीन कक्ष (Emergency Room) में जाएं।'
+        : 'सिम्युलेटर सलाह: आपके लक्षण सामान्य लग रहे हैं। आराम करें, पर्याप्त मात्रा में पानी पिएं और यदि स्थिति बिगड़ती है तो डॉक्टर से संपर्क करें।';
+    } else if (language.startsWith('mr')) {
+      advice = isSevere
+        ? 'सिम्युलेटर अलर्ट: तुमची लक्षणे गंभीर वाटतात. कृपया तातडीने जवळच्या रुग्णालयाच्या आपत्कालीन विभागात जा.'
+        : 'सिम्युलेटर सल्ला: तुमची लक्षणे सौम्य वाटतात. विश्रांती घ्या, भरपूर पाणी प्या आणि त्रास वाढल्यास डॉक्टरांचा सल्ला घ्या.';
+    } else if (language.startsWith('ta')) {
+      advice = isSevere
+        ? 'சிமுலேட்டர் எச்சரிக்கை: உங்கள் அறிகுறிகள் தீவிரமாகத் தெரிகின்றன. தயவுசெய்து உடனடியாக அவசர சிகிச்சை பிரிவுக்குச் செல்லவும்.'
+        : 'சிமுலேட்டர் ஆலோசனை: உங்கள் அறிகுறிகள் லேசானவை. ஓய்வெடுங்கள், போதுமான அளவு தண்ணீர் குடிக்கவும், அறிகுறிகள் தொடர்ந்தால் மருத்துவரை அணுகவும்.';
+    } else {
+      advice = isSevere
+        ? 'SIMULATOR ALERT: Your symptoms suggest a potentially severe condition. Please proceed to the nearest emergency clinic or call for medical help immediately.'
+        : 'SIMULATOR ADVICE: Your symptoms appear mild. Get adequate rest, stay hydrated, and consult a physician if your condition persists or worsens.';
+    }
+    
+    return {
+      severity: isSevere ? 'Severe' : 'Minor',
+      advice,
+      needsClinic: isSevere
+    };
   }
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
   

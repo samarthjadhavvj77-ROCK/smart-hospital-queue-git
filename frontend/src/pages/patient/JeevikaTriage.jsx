@@ -57,6 +57,9 @@ const JeevikaTriage = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [parallaxOffset, setParallaxOffset] = useState({ x: 0, y: 0 });
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const audioPlaybackRef = useRef(null);
   const recognitionRef = useRef(null);
 
   useEffect(() => {
@@ -71,32 +74,102 @@ const JeevikaTriage = () => {
 
   const selectedLangName = LANGUAGES.find(l => l.code === language)?.name || 'English';
 
-  const startRecording = () => {
-    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-      alert('Voice input not supported. Please use Chrome or Edge.');
-      return;
-    }
+  const startRecording = async () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const recognition = new SpeechRecognition();
-    recognition.lang = language;
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.onresult = (event) => {
-      let current = '';
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        current += event.results[i][0].transcript;
+
+    if (SpeechRecognition) {
+      try {
+        const recognition = new SpeechRecognition();
+        recognition.lang = language;
+        recognition.continuous = false;
+        recognition.interimResults = false;
+
+        recognition.onstart = () => {
+          setIsRecording(true);
+          setTranscript('');
+        };
+
+        recognition.onresult = (event) => {
+          const text = event.results[0][0].transcript;
+          if (text) {
+            setTranscript(text);
+            analyzeSymptooms(text);
+          }
+        };
+
+        recognition.onerror = (err) => {
+          console.error('Speech recognition error, falling back to server-side recording:', err);
+          startServerRecording();
+        };
+
+        recognition.onend = () => {
+          setIsRecording(false);
+        };
+
+        recognitionRef.current = recognition;
+        recognition.start();
+      } catch (err) {
+        console.error('Failed to start SpeechRecognition, trying server-side:', err);
+        startServerRecording();
       }
-      setTranscript(current);
-    };
-    recognition.onerror = () => setIsRecording(false);
-    recognition.onend = () => setIsRecording(false);
-    recognitionRef.current = recognition;
-    recognition.start();
-    setIsRecording(true);
+    } else {
+      console.warn('SpeechRecognition not supported in browser, trying server-side recording.');
+      startServerRecording();
+    }
+  };
+
+  const startServerRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const formData = new FormData();
+        formData.append('audio', audioBlob, 'recording.webm');
+        formData.append('language', language);
+        
+        setIsAnalyzing(true);
+        try {
+          const { data } = await API.post('/ai/stt', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+          });
+          if (data.transcript) {
+             setTranscript(data.transcript);
+             analyzeSymptooms(data.transcript);
+          }
+        } catch (err) {
+          console.error('STT Error', err);
+          alert('Failed to process voice. Please try typing instead.');
+        } finally {
+          setIsAnalyzing(false);
+        }
+        
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+    } catch (err) {
+      console.error('Microphone access denied', err);
+      alert('Microphone access is required to use voice input.');
+    }
   };
 
   const stopRecording = () => {
-    recognitionRef.current?.stop();
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+    } else if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
     setIsRecording(false);
   };
 
@@ -107,13 +180,26 @@ const JeevikaTriage = () => {
     try {
       const { data } = await API.post('/ai/triage', { transcript: text, language });
       setTriageData(data);
-      // Speak the advice
-      if (window.speechSynthesis && data.advice) {
-        window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(data.advice);
-        utterance.lang = language;
-        utterance.rate = 0.95;
-        window.speechSynthesis.speak(utterance);
+      // Synthesize speech using Gnani TTS via backend
+      if (data.advice) {
+        try {
+          if (audioPlaybackRef.current) {
+             audioPlaybackRef.current.pause();
+          }
+          const ttsRes = await API.post('/ai/tts', { text: data.advice, language }, { responseType: 'blob' });
+          const audioUrl = URL.createObjectURL(ttsRes.data);
+          const audio = new Audio(audioUrl);
+          audioPlaybackRef.current = audio;
+          audio.play();
+        } catch (ttsErr) {
+          console.error("TTS Endpoint Error, falling back to browser speechSynthesis:", ttsErr);
+          if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel(); // Stop any active speech
+            const utterance = new SpeechSynthesisUtterance(data.advice);
+            utterance.lang = language;
+            window.speechSynthesis.speak(utterance);
+          }
+        }
       }
     } catch (err) {
       console.error(err);
@@ -172,7 +258,7 @@ const JeevikaTriage = () => {
               </div>
               <span className="text-xl font-bold tracking-tight text-white uppercase">JEEVIKA AI</span>
             </div>
-            <span className="text-xs text-white/40 uppercase tracking-widest hidden md:block">Powered by Google Gemini</span>
+            <span className="text-xs text-white/40 uppercase tracking-widest hidden md:block">Powered by Gnani.ai</span>
           </div>
 
           <div className="flex items-center gap-3 relative">
@@ -317,7 +403,7 @@ const JeevikaTriage = () => {
               <p className="text-xs uppercase tracking-widest text-white/40">Medical Disclaimer</p>
             </div>
             <p className="text-xs text-white/50 italic text-center md:text-right">
-              "Jeevika AI provides preliminary triage powered by Google Gemini and is not a substitute for professional medical care."
+              "Jeevika AI provides preliminary triage powered by Gnani.ai and is not a substitute for professional medical care."
             </p>
           </div>
         </footer>

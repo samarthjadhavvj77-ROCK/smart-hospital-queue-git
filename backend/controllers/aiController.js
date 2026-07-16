@@ -53,4 +53,38 @@ const analyzeTriageEndpoint = async (req, res) => {
   }
 };
 
-module.exports = { getAIStatus, chatWithAI, clearHistory, analyzeTriageEndpoint };
+const transcribeAudioEndpoint = async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No audio file uploaded' });
+    
+    const language = req.body.language || 'en-IN';
+    const { transcribeWithGnani } = require('../services/gnaniService');
+    
+    const transcript = await transcribeWithGnani(req.file.buffer, language, req.file.originalname);
+    res.json({ transcript });
+  } catch (error) {
+    console.error('STT Endpoint Error:', error);
+    res.status(500).json({ error: 'Failed to transcribe audio.' });
+  }
+};
+
+// @desc  Synthesize speech from text via Gnani TTS
+// @route POST /api/ai/tts
+// @access Private
+const synthesizeSpeechEndpoint = async (req, res) => {
+  try {
+    const { text, language } = req.body;
+    if (!text) return res.status(400).json({ error: 'Text is required' });
+    
+    const { synthesizeWithGnani } = require('../services/gnaniService');
+    const audioBuffer = await synthesizeWithGnani(text, language || 'en-IN');
+    
+    res.set('Content-Type', 'audio/wav');
+    res.send(Buffer.from(audioBuffer));
+  } catch (error) {
+    console.error('TTS Endpoint Error:', error);
+    res.status(500).json({ error: 'Failed to synthesize speech.' });
+  }
+};
+
+module.exports = { getAIStatus, chatWithAI, clearHistory, analyzeTriageEndpoint, transcribeAudioEndpoint, synthesizeSpeechEndpoint };

@@ -74,7 +74,7 @@ const PatientDashboard = () => {
                 <div>
                   <div className="flex items-center gap-2 mb-1">
                     <p className="font-bold text-white text-xl tracking-tight uppercase">JEEVIKA AI</p>
-                    <span className="px-2 py-0.5 bg-white/15 text-white/80 text-xs rounded-full border border-white/20 font-medium">Powered by Gemini</span>
+                    <span className="px-2 py-0.5 bg-white/15 text-white/80 text-xs rounded-full border border-white/20 font-medium">Powered by Gnani.ai</span>
                   </div>
                   <p className="text-white/60 text-sm max-w-md">
                     Describe your symptoms by voice or text. Jeevika will assess severity in English, Hindi, Marathi, or Tamil — instantly.
