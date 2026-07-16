@@ -1,0 +1,50 @@
+# ============================================
+# SMART HOSPITAL QUEUE — .gitignore
+# ============================================
+
+# --- NODE MODULES (never commit these) ---
+node_modules/
+**/node_modules/
+
+# --- ENVIRONMENT FILES (PROTECTS YOUR API KEY!) ---
+.env
+.env.local
+.env.development
+.env.production
+**/.env
+**/.env.local
+
+# --- BUILD OUTPUTS ---
+dist/
+build/
+.next/
+out/
+
+# --- LOGS ---
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+logs/
+
+# --- OS FILES ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- EDITOR FILES ---
+.vscode/settings.json
+.idea/
+*.suo
+*.user
+
+# --- TEMP / CACHE ---
+.cache/
+.parcel-cache/
+*.tgz
+
+# --- ARCHIVES ---
+*.zip
+*.rar
+*.tar.gz
+
