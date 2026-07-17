@@ -62,10 +62,7 @@ npm start
 cd frontend
 npm install
 npm run dev
-```
-
-### 4. Open the app
-Visit **http://localhost:5173**
+``` 
 
 ## 🤖 Jeevika AI
 
